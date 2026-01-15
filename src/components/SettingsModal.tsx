@@ -72,6 +72,15 @@ const SettingsModal: React.FC<{
               LOGOUT
             </button>
           )}
+
+          <div className="pt-4 mt-2 border-t border-[#23293a] w-full text-center">
+            <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Credits</span>
+            <div className="mt-2 space-y-1">
+              <p className="text-xs text-gray-400">Crack: <span className="text-blue-400">Belleven</span></p>
+              <p className="text-xs text-gray-400">System Launcher: <span className="text-blue-400">Fitzxel</span></p>
+              <p className="text-xs text-gray-400">Design Launcher: <span className="text-blue-400">primeisonline</span></p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

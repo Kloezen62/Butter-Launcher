@@ -1,9 +1,22 @@
+
 import { useUserContext } from "./hooks/userContext";
 import Launcher from "./components/Launcher";
 import Login from "./components/Login";
+import Loader from "./components/Loader";
+import React, { useState, useEffect } from "react";
 
 export default function App() {
   const { ready, username, setUsername } = useUserContext();
+  const [showLoader, setShowLoader] = useState(true);
+  const [fade, setFade] = useState(false);
+
+  useEffect(() => {
+    if (ready) {
+      setFade(true);
+      const timeout = setTimeout(() => setShowLoader(false), 1000); 
+      return () => clearTimeout(timeout);
+    }
+  }, [ready]);
 
   return (
     <div
@@ -18,14 +31,26 @@ export default function App() {
         className="w-full h-full min-h-screen flex flex-col"
         style={{ position: "relative" }}
       >
-        {ready ? (
-          username ? (
-            <Launcher onLogout={() => setUsername(null)} />
-          ) : (
-            <Login onLogin={(username) => setUsername(username)} />
-          )
-        ) : (
-          <div>Loading...</div>
+        {showLoader && (
+          <div style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 10000,
+            pointerEvents: "all",
+            opacity: fade ? 0 : 1,
+            transition: "opacity 1s"
+          }}>
+            <Loader />
+          </div>
+        )}
+        {!showLoader && (
+          ready ? (
+            username ? (
+              <Launcher onLogout={() => setUsername(null)} />
+            ) : (
+              <Login onLogin={(username) => setUsername(username)} />
+            )
+          ) : null
         )}
       </div>
     </div>

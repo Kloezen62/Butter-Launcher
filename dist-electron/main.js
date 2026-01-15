@@ -5,12 +5,12 @@ import path$2 from "node:path";
 import fs$5 from "node:fs";
 import fs$4 from "fs";
 import path$1, { join, dirname } from "path";
-import require$$1$1, { promisify as promisify$1 } from "util";
+import require$$1, { promisify as promisify$1 } from "util";
 import require$$6 from "stream";
-import require$$1 from "tty";
+import require$$0$1 from "tty";
 import require$$0 from "os";
-import require$$0$1 from "buffer";
-import require$$1$2 from "zlib";
+import require$$0$2 from "buffer";
+import require$$1$1 from "zlib";
 import require$$4 from "events";
 import { exec } from "child_process";
 var commonjsGlobal = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : {};
@@ -241,63 +241,49 @@ function requireCommon() {
       createDebug.namespaces = namespaces;
       createDebug.names = [];
       createDebug.skips = [];
-      const split = (typeof namespaces === "string" ? namespaces : "").trim().replace(/\s+/g, ",").split(",").filter(Boolean);
-      for (const ns of split) {
-        if (ns[0] === "-") {
-          createDebug.skips.push(ns.slice(1));
+      let i;
+      const split = (typeof namespaces === "string" ? namespaces : "").split(/[\s,]+/);
+      const len = split.length;
+      for (i = 0; i < len; i++) {
+        if (!split[i]) {
+          continue;
+        }
+        namespaces = split[i].replace(/\*/g, ".*?");
+        if (namespaces[0] === "-") {
+          createDebug.skips.push(new RegExp("^" + namespaces.slice(1) + "$"));
         } else {
-          createDebug.names.push(ns);
+          createDebug.names.push(new RegExp("^" + namespaces + "$"));
         }
       }
-    }
-    function matchesTemplate(search, template) {
-      let searchIndex = 0;
-      let templateIndex = 0;
-      let starIndex = -1;
-      let matchIndex = 0;
-      while (searchIndex < search.length) {
-        if (templateIndex < template.length && (template[templateIndex] === search[searchIndex] || template[templateIndex] === "*")) {
-          if (template[templateIndex] === "*") {
-            starIndex = templateIndex;
-            matchIndex = searchIndex;
-            templateIndex++;
-          } else {
-            searchIndex++;
-            templateIndex++;
-          }
-        } else if (starIndex !== -1) {
-          templateIndex = starIndex + 1;
-          matchIndex++;
-          searchIndex = matchIndex;
-        } else {
-          return false;
-        }
-      }
-      while (templateIndex < template.length && template[templateIndex] === "*") {
-        templateIndex++;
-      }
-      return templateIndex === template.length;
     }
     function disable() {
       const namespaces = [
-        ...createDebug.names,
-        ...createDebug.skips.map((namespace) => "-" + namespace)
+        ...createDebug.names.map(toNamespace),
+        ...createDebug.skips.map(toNamespace).map((namespace) => "-" + namespace)
       ].join(",");
       createDebug.enable("");
       return namespaces;
     }
     function enabled(name) {
-      for (const skip of createDebug.skips) {
-        if (matchesTemplate(name, skip)) {
+      if (name[name.length - 1] === "*") {
+        return true;
+      }
+      let i;
+      let len;
+      for (i = 0, len = createDebug.skips.length; i < len; i++) {
+        if (createDebug.skips[i].test(name)) {
           return false;
         }
       }
-      for (const ns of createDebug.names) {
-        if (matchesTemplate(name, ns)) {
+      for (i = 0, len = createDebug.names.length; i < len; i++) {
+        if (createDebug.names[i].test(name)) {
           return true;
         }
       }
       return false;
+    }
+    function toNamespace(regexp) {
+      return regexp.toString().substring(2, regexp.toString().length - 2).replace(/\.\*\?$/, "*");
     }
     function coerce(val) {
       if (val instanceof Error) {
@@ -318,13 +304,13 @@ var hasRequiredBrowser;
 function requireBrowser() {
   if (hasRequiredBrowser) return browser.exports;
   hasRequiredBrowser = 1;
-  (function(module, exports$1) {
-    exports$1.formatArgs = formatArgs;
-    exports$1.save = save;
-    exports$1.load = load;
-    exports$1.useColors = useColors;
-    exports$1.storage = localstorage();
-    exports$1.destroy = /* @__PURE__ */ (() => {
+  (function(module, exports) {
+    exports.formatArgs = formatArgs;
+    exports.save = save;
+    exports.load = load;
+    exports.useColors = useColors;
+    exports.storage = localstorage();
+    exports.destroy = /* @__PURE__ */ (() => {
       let warned = false;
       return () => {
         if (!warned) {
@@ -333,7 +319,7 @@ function requireBrowser() {
         }
       };
     })();
-    exports$1.colors = [
+    exports.colors = [
       "#0000CC",
       "#0000FF",
       "#0033CC",
@@ -445,14 +431,14 @@ function requireBrowser() {
       });
       args.splice(lastC, 0, c);
     }
-    exports$1.log = console.debug || console.log || (() => {
+    exports.log = console.debug || console.log || (() => {
     });
     function save(namespaces) {
       try {
         if (namespaces) {
-          exports$1.storage.setItem("debug", namespaces);
+          exports.storage.setItem("debug", namespaces);
         } else {
-          exports$1.storage.removeItem("debug");
+          exports.storage.removeItem("debug");
         }
       } catch (error) {
       }
@@ -460,7 +446,7 @@ function requireBrowser() {
     function load() {
       let r;
       try {
-        r = exports$1.storage.getItem("debug") || exports$1.storage.getItem("DEBUG");
+        r = exports.storage.getItem("debug");
       } catch (error) {
       }
       if (!r && typeof process !== "undefined" && "env" in process) {
@@ -474,7 +460,7 @@ function requireBrowser() {
       } catch (error) {
       }
     }
-    module.exports = requireCommon()(exports$1);
+    module.exports = requireCommon()(exports);
     const { formatters } = module.exports;
     formatters.j = function(v) {
       try {
@@ -492,11 +478,12 @@ var hasRequiredHasFlag;
 function requireHasFlag() {
   if (hasRequiredHasFlag) return hasFlag;
   hasRequiredHasFlag = 1;
-  hasFlag = (flag, argv = process.argv) => {
+  hasFlag = (flag, argv) => {
+    argv = argv || process.argv;
     const prefix = flag.startsWith("-") ? "" : flag.length === 1 ? "-" : "--";
-    const position = argv.indexOf(prefix + flag);
-    const terminatorPosition = argv.indexOf("--");
-    return position !== -1 && (terminatorPosition === -1 || position < terminatorPosition);
+    const pos = argv.indexOf(prefix + flag);
+    const terminatorPos = argv.indexOf("--");
+    return pos !== -1 && (terminatorPos === -1 ? true : pos < terminatorPos);
   };
   return hasFlag;
 }
@@ -506,23 +493,16 @@ function requireSupportsColor() {
   if (hasRequiredSupportsColor) return supportsColor_1;
   hasRequiredSupportsColor = 1;
   const os = require$$0;
-  const tty = require$$1;
   const hasFlag2 = requireHasFlag();
-  const { env } = process;
+  const env = process.env;
   let forceColor;
-  if (hasFlag2("no-color") || hasFlag2("no-colors") || hasFlag2("color=false") || hasFlag2("color=never")) {
-    forceColor = 0;
+  if (hasFlag2("no-color") || hasFlag2("no-colors") || hasFlag2("color=false")) {
+    forceColor = false;
   } else if (hasFlag2("color") || hasFlag2("colors") || hasFlag2("color=true") || hasFlag2("color=always")) {
-    forceColor = 1;
+    forceColor = true;
   }
   if ("FORCE_COLOR" in env) {
-    if (env.FORCE_COLOR === "true") {
-      forceColor = 1;
-    } else if (env.FORCE_COLOR === "false") {
-      forceColor = 0;
-    } else {
-      forceColor = env.FORCE_COLOR.length === 0 ? 1 : Math.min(parseInt(env.FORCE_COLOR, 10), 3);
-    }
+    forceColor = env.FORCE_COLOR.length === 0 || parseInt(env.FORCE_COLOR, 10) !== 0;
   }
   function translateLevel(level) {
     if (level === 0) {
@@ -535,8 +515,8 @@ function requireSupportsColor() {
       has16m: level >= 3
     };
   }
-  function supportsColor(haveStream, streamIsTTY) {
-    if (forceColor === 0) {
+  function supportsColor(stream2) {
+    if (forceColor === false) {
       return 0;
     }
     if (hasFlag2("color=16m") || hasFlag2("color=full") || hasFlag2("color=truecolor")) {
@@ -545,22 +525,19 @@ function requireSupportsColor() {
     if (hasFlag2("color=256")) {
       return 2;
     }
-    if (haveStream && !streamIsTTY && forceColor === void 0) {
+    if (stream2 && !stream2.isTTY && forceColor !== true) {
       return 0;
     }
-    const min = forceColor || 0;
-    if (env.TERM === "dumb") {
-      return min;
-    }
+    const min = forceColor ? 1 : 0;
     if (process.platform === "win32") {
       const osRelease = os.release().split(".");
-      if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
+      if (Number(process.versions.node.split(".")[0]) >= 8 && Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
         return Number(osRelease[2]) >= 14931 ? 3 : 2;
       }
       return 1;
     }
     if ("CI" in env) {
-      if (["TRAVIS", "CIRCLECI", "APPVEYOR", "GITLAB_CI", "GITHUB_ACTIONS", "BUILDKITE"].some((sign) => sign in env) || env.CI_NAME === "codeship") {
+      if (["TRAVIS", "CIRCLECI", "APPVEYOR", "GITLAB_CI"].some((sign) => sign in env) || env.CI_NAME === "codeship") {
         return 1;
       }
       return min;
@@ -589,16 +566,19 @@ function requireSupportsColor() {
     if ("COLORTERM" in env) {
       return 1;
     }
+    if (env.TERM === "dumb") {
+      return min;
+    }
     return min;
   }
   function getSupportLevel(stream2) {
-    const level = supportsColor(stream2, stream2 && stream2.isTTY);
+    const level = supportsColor(stream2);
     return translateLevel(level);
   }
   supportsColor_1 = {
     supportsColor: getSupportLevel,
-    stdout: translateLevel(supportsColor(true, tty.isatty(1))),
-    stderr: translateLevel(supportsColor(true, tty.isatty(2)))
+    stdout: getSupportLevel(process.stdout),
+    stderr: getSupportLevel(process.stderr)
   };
   return supportsColor_1;
 }
@@ -606,25 +586,25 @@ var hasRequiredNode;
 function requireNode() {
   if (hasRequiredNode) return node.exports;
   hasRequiredNode = 1;
-  (function(module, exports$1) {
-    const tty = require$$1;
-    const util2 = require$$1$1;
-    exports$1.init = init;
-    exports$1.log = log;
-    exports$1.formatArgs = formatArgs;
-    exports$1.save = save;
-    exports$1.load = load;
-    exports$1.useColors = useColors;
-    exports$1.destroy = util2.deprecate(
+  (function(module, exports) {
+    const tty = require$$0$1;
+    const util2 = require$$1;
+    exports.init = init;
+    exports.log = log;
+    exports.formatArgs = formatArgs;
+    exports.save = save;
+    exports.load = load;
+    exports.useColors = useColors;
+    exports.destroy = util2.deprecate(
       () => {
       },
       "Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`."
     );
-    exports$1.colors = [6, 2, 3, 4, 5, 1];
+    exports.colors = [6, 2, 3, 4, 5, 1];
     try {
       const supportsColor = requireSupportsColor();
       if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) {
-        exports$1.colors = [
+        exports.colors = [
           20,
           21,
           26,
@@ -705,7 +685,7 @@ function requireNode() {
       }
     } catch (error) {
     }
-    exports$1.inspectOpts = Object.keys(process.env).filter((key) => {
+    exports.inspectOpts = Object.keys(process.env).filter((key) => {
       return /^debug_/i.test(key);
     }).reduce((obj, key) => {
       const prop = key.substring(6).toLowerCase().replace(/_([a-z])/g, (_, k) => {
@@ -725,7 +705,7 @@ function requireNode() {
       return obj;
     }, {});
     function useColors() {
-      return "colors" in exports$1.inspectOpts ? Boolean(exports$1.inspectOpts.colors) : tty.isatty(process.stderr.fd);
+      return "colors" in exports.inspectOpts ? Boolean(exports.inspectOpts.colors) : tty.isatty(process.stderr.fd);
     }
     function formatArgs(args) {
       const { namespace: name, useColors: useColors2 } = this;
@@ -740,13 +720,13 @@ function requireNode() {
       }
     }
     function getDate() {
-      if (exports$1.inspectOpts.hideDate) {
+      if (exports.inspectOpts.hideDate) {
         return "";
       }
       return (/* @__PURE__ */ new Date()).toISOString() + " ";
     }
     function log(...args) {
-      return process.stderr.write(util2.formatWithOptions(exports$1.inspectOpts, ...args) + "\n");
+      return process.stderr.write(util2.formatWithOptions(exports.inspectOpts, ...args) + "\n");
     }
     function save(namespaces) {
       if (namespaces) {
@@ -760,12 +740,12 @@ function requireNode() {
     }
     function init(debug2) {
       debug2.inspectOpts = {};
-      const keys = Object.keys(exports$1.inspectOpts);
+      const keys = Object.keys(exports.inspectOpts);
       for (let i = 0; i < keys.length; i++) {
-        debug2.inspectOpts[keys[i]] = exports$1.inspectOpts[keys[i]];
+        debug2.inspectOpts[keys[i]] = exports.inspectOpts[keys[i]];
       }
     }
-    module.exports = requireCommon()(exports$1);
+    module.exports = requireCommon()(exports);
     const { formatters } = module.exports;
     formatters.o = function(v) {
       this.inspectOpts.colors = this.useColors;
@@ -1033,7 +1013,7 @@ var bufferStream$1 = (options) => {
   stream2.getBufferedLength = () => length;
   return stream2;
 };
-const { constants: BufferConstants } = require$$0$1;
+const { constants: BufferConstants } = require$$0$2;
 const pump = pump_1;
 const bufferStream = bufferStream$1;
 class MaxBufferError extends Error {
@@ -1132,7 +1112,7 @@ function pendGo(self2, fn) {
   fn(pendHold(self2));
 }
 var fs$2 = fs$4;
-var util$1 = require$$1$1;
+var util$1 = require$$1;
 var stream$1 = require$$6;
 var Readable = stream$1.Readable;
 var Writable$1 = stream$1.Writable;
@@ -1384,7 +1364,7 @@ function createFromBuffer(buffer, options) {
 function createFromFd(fd, options) {
   return new FdSlicer(fd, options);
 }
-var Buffer$1 = require$$0$1.Buffer;
+var Buffer$1 = require$$0$2.Buffer;
 var CRC_TABLE = [
   0,
   1996959894,
@@ -1686,10 +1666,10 @@ crc32$1.unsigned = function() {
 };
 var bufferCrc32 = crc32$1;
 var fs$1 = fs$4;
-var zlib = require$$1$2;
+var zlib = require$$1$1;
 var fd_slicer = fdSlicer;
 var crc32 = bufferCrc32;
-var util = require$$1$1;
+var util = require$$1;
 var EventEmitter = require$$4.EventEmitter;
 var Transform = require$$6.Transform;
 var PassThrough = require$$6.PassThrough;
@@ -2312,7 +2292,7 @@ const debug = srcExports("extract-zip");
 const { createWriteStream, promises: fs } = fs$4;
 const getStream = getStreamExports;
 const path = path$1;
-const { promisify } = require$$1$1;
+const { promisify } = require$$1;
 const stream = require$$6;
 const yauzl = yauzl$1;
 const openZip = promisify(yauzl.open);
@@ -2440,7 +2420,7 @@ var extractZip = async function(zipPath, opts) {
 };
 const extract = /* @__PURE__ */ getDefaultExportFromCjs(extractZip);
 const pipeline = promisify$1(require$$6.pipeline);
-const API_URL = "http://localhost:8080";
+const API_URL = "https://hytale-files.vercel.app";
 async function getLatestUrl() {
   const response = await fetch(API_URL);
   const data = await response.json();
@@ -2541,8 +2521,8 @@ function launchGame(baseDir, username, win2, releaseType = "latest") {
   });
 }
 createRequire(import.meta.url);
-const __dirname$1 = path$2.dirname(fileURLToPath(import.meta.url));
-process.env.APP_ROOT = path$2.join(__dirname$1, "..");
+const __dirname = path$2.dirname(fileURLToPath(import.meta.url));
+process.env.APP_ROOT = path$2.join(__dirname, "..");
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 const MAIN_DIST = path$2.join(process.env.APP_ROOT, "dist-electron");
 const RENDERER_DIST = path$2.join(process.env.APP_ROOT, "dist");
@@ -2554,10 +2534,11 @@ function createWindow() {
     height: 640,
     frame: false,
     titleBarStyle: "hidden",
+    resizable: false,
     backgroundColor: "#00000000",
     icon: path$2.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
     webPreferences: {
-      preload: path$2.join(__dirname$1, "preload.mjs")
+      preload: path$2.join(__dirname, "preload.mjs")
     }
   });
   win.webContents.on("did-finish-load", () => {

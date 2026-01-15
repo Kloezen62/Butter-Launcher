@@ -21,7 +21,10 @@ export const UserContextProvider = ({
     if (storedUsername) {
       setUsername(storedUsername);
     }
-    setReady(true);
+    const timeout = setTimeout(() => {
+      setReady(true);
+    }, 3000);
+    return () => clearTimeout(timeout);
   }, []);
 
   useEffect(() => {

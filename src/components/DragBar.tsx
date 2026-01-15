@@ -11,7 +11,7 @@ const DragBar: React.FC = () => {
   return (
     <div
       id="frame"
-      className="w-full h-9 flex items-center justify-end select-none shadow-sm bg-black/20 backdrop-blur-md"
+      className="w-full h-9 flex items-center justify-end select-none"
     >
       <button
         className="no-drag w-8 h-8 flex items-center justify-center text-lg text-gray-300 hover:bg-[#23293a] hover:text-white rounded transition focus:outline-none mr-1"

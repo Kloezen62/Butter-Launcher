@@ -20,6 +20,12 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
   const { username } = useUserContext();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  const installedSize = 0;
+  const totalSize = 2000; 
+
+  const installedSizeGB = (installedSize / 1024).toFixed(2); 
+  const totalSizeGB = (totalSize / 1024).toFixed(2);
+
   return (
     <div
       className="w-full h-full min-h-screen flex flex-col justify-between relative"
@@ -62,12 +68,23 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
         <div className="flex flex-col gap-3">
           {installing ? (
             <div>
-              <div className="w-52 h-12 bg-white/10 rounded-lg shadow-inner flex flex-col justify-end p-2">
-                <div className="text-xs text-white">Installing...</div>
+              <div className="w-52 h-16 bg-white/10 rounded-lg shadow-inner flex flex-col justify-center p-4">
+                <div className="text-xs text-white font-semibold">Installing...</div>
+                <div className="flex items-center justify-between mt-1">
+                <div className="text-[10px] text-gray-300">{installProgress}%</div>
                 <div className="text-[10px] text-gray-300">
-                  {installProgress}%
+                  {installedSizeGB} GB / {totalSizeGB} GB
                 </div>
-              </div>
+                </div>
+                <div className="relative mt-2">
+                  <div className="absolute inset-0 bg-white/20 rounded-full"></div>
+                  <div
+                  className="h-1 bg-gradient-to-r from-[#3b82f6] to-[#60a5fa] rounded-full"
+                  style={{ width: `${installProgress}%`, transition: "width 0.3s ease" }}
+                />
+            </div>
+          </div>
+              
             </div>
           ) : (
             <button
@@ -92,21 +109,21 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
         </div>
         <div className="flex flex-row gap-4">
           <div className="w-40 h-20 bg-white/10 rounded-lg shadow-inner flex flex-col justify-end p-2">
-            <div className="text-xs text-white">LAUNCHER NO PREMIUM HYTALE</div>
+            <div className="text-xs text-white">Butter Launcher 1.0.0</div>
             <div className="text-[10px] text-gray-300">
-              version beta de hytale no premium
+              The launcher is in Alpha phase, so it may have bugs; we are improving its functionality.
             </div>
           </div>
           <div className="w-40 h-20 bg-white/10 rounded-lg shadow-inner flex flex-col justify-end p-2">
-            <div className="text-xs text-white">LAUNCHER NO PREMIUM HYTALE</div>
+            <div className="text-xs text-white">CONNECT AND CREATE</div>
             <div className="text-[10px] text-gray-300">
-              version beta de hytale no premium
+              Join the largest non-premium Hytale community. Forge your own destiny.
             </div>
           </div>
           <div className="w-40 h-20 bg-white/10 rounded-lg shadow-inner flex flex-col justify-end p-2">
-            <div className="text-xs text-white">LAUNCHER NO PREMIUM HYTALE</div>
+            <div className="text-xs text-white">FREE HYTALE ACCESS</div>
             <div className="text-[10px] text-gray-300">
-              version beta de hytale no premium
+              Optimized performance and full access to the technical beta. No restrictions.
             </div>
           </div>
         </div>
