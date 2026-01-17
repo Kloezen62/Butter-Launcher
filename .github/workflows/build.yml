@@ -52,6 +52,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Flatpak (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak
+
       - name: Build & Publish (Electron Builder)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
