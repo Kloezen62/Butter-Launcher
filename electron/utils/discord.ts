@@ -18,13 +18,6 @@ let rpcActivity: SetActivity = {
   ],
 };
 
-const formatYMD = (d: Date) => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-};
-
 export const setChoosingVersionActivity = () => {
   setActivity({
     startTimestamp: dateElapsed,
@@ -37,8 +30,7 @@ export const setChoosingVersionActivity = () => {
 };
 
 export const setPlayingActivity = (version: GameVersion) => {
-  const date = formatYMD(new Date());
-  const build = `Build-${version.build_index}_${date} ${version.type}`;
+  const build = version.build_name || `Build-${version.build_index} ${version.type}`;
   setActivity({
     startTimestamp: Date.now(),
     details: "Playing Hytale No-Premium",
