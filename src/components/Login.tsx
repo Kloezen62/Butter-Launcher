@@ -2,9 +2,10 @@ import React, { useState } from "react";
 import butterLoginBg from "../assets/butter-login.jpeg";
 import butterLogo from "../assets/butter-logo.png";
 import DragBar from "./DragBar";
-import { LAUNCHER_BUILD_STRING } from "../utils/launcherBuild";
 
-const Login: React.FC<{ onLogin: (username: string) => void }> = ({ onLogin }) => {
+const Login: React.FC<{ onLogin: (username: string) => void }> = ({
+  onLogin,
+}) => {
   const [nick, setNick] = useState("");
   const [error, setError] = useState("");
 
@@ -44,7 +45,7 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({ onLogin }) =
             type="text"
             placeholder="Nickname"
             value={nick}
-            onChange={e => setNick(e.target.value)}
+            onChange={(e) => setNick(e.target.value)}
             className="
               w-full h-11 px-4
               bg-[#1a1f2e]
@@ -56,11 +57,7 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({ onLogin }) =
             "
           />
 
-          {error && (
-            <span className="text-red-400 text-xs">
-              {error}
-            </span>
-          )}
+          {error && <span className="text-red-400 text-xs">{error}</span>}
 
           <button
             type="submit"
@@ -82,7 +79,7 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({ onLogin }) =
         </p>
 
         <div className="absolute bottom-6 left-10 text-xs text-gray-500">
-          {LAUNCHER_BUILD_STRING}
+          {`${window.config.BUILD_DATE} V${window.config.VERSION}`}
         </div>
       </div>
 

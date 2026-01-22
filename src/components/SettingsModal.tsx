@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { FolderOpen } from "lucide-react";
+import { IconFolderOpen } from "@tabler/icons-react";
 import { useGameContext } from "../hooks/gameContext";
-import { LAUNCHER_BUILD_STRING } from "../utils/launcherBuild";
+import cn from "../utils/cn";
 
 const SettingsModal: React.FC<{
   open: boolean;
@@ -23,7 +23,11 @@ const SettingsModal: React.FC<{
       return `${lower.slice(0, 8)}-${lower.slice(8, 12)}-${lower.slice(12, 16)}-${lower.slice(16, 20)}-${lower.slice(20)}`;
     }
 
-    if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(raw)) {
+    if (
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+        raw,
+      )
+    ) {
       return raw.toLowerCase();
     }
 
@@ -74,16 +78,17 @@ const SettingsModal: React.FC<{
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md animate-fade-in">
       <div
-        className={`
+        className={cn(
+          `
           relative w-full max-w-4xl h-[450px] mx-auto
           rounded-xl
-          bg-gradient-to-b from-[#1b2030]/95 to-[#141824]/95
+          bg-linear-to-b from-[#1b2030]/95 to-[#141824]/95
           border border-[#2a3146]
           shadow-2xl
           px-10 py-6
-          flex flex-col
-          ${closing ? "animate-settings-out" : "animate-settings-in"}
-        `}
+          flex flex-col animate-settings-in`,
+          closing && "animate-settings-out",
+        )}
       >
         <button
           className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[#23293a] text-gray-400 hover:text-white hover:bg-[#2f3650] transition flex items-center justify-center"
@@ -106,7 +111,6 @@ const SettingsModal: React.FC<{
         {/* CONTENT */}
         <div className="flex-1 overflow-y-auto pr-2">
           <div className="grid grid-cols-2 gap-6">
-
             {/* <div>
               <label className="text-gray-200 text-sm font-semibold mb-1 block">
                 Patchline
@@ -126,7 +130,7 @@ const SettingsModal: React.FC<{
                 onClick={handleOpenGameDir}
               >
                 <span className="text-sm">Open Folder</span>
-                <FolderOpen size={18} />
+                <IconFolderOpen size={18} />
               </button>
             </div>
             <div className="space-y-2">
@@ -138,11 +142,9 @@ const SettingsModal: React.FC<{
                 onClick={handleOpenModDir}
               >
                 <span className="text-sm">Open Folder</span>
-                <FolderOpen size={18} />
+                <IconFolderOpen size={18} />
               </button>
             </div>
-
-
 
             <div className="col-span-2 space-y-2">
               <label className="text-xs uppercase tracking-widest text-gray-400">
@@ -190,7 +192,6 @@ const SettingsModal: React.FC<{
                 LAUNCH
               </button>
             </div> */}
-
           </div>
         </div>
 
@@ -208,14 +209,15 @@ const SettingsModal: React.FC<{
                 System Launcher: <span className="text-blue-400">Fitzxel</span>
               </p>
               <p className="text-xs text-gray-400">
-                Design Launcher: <span className="text-blue-400">primeisonline</span>
+                Design Launcher:{" "}
+                <span className="text-blue-400">primeisonline</span>
               </p>
             </div>
           </div>
 
           <div className="flex flex-col gap-3">
             <div className="text-[11px] font-mono text-gray-400">
-              {LAUNCHER_BUILD_STRING}
+              {`${window.config.BUILD_DATE} V${window.config.VERSION}`}
             </div>
             <button
               className="px-4 py-2 rounded-lg font-semibold border border-blue-500/40 text-blue-400 hover:bg-blue-500/10 transition disabled:opacity-50"
@@ -227,16 +229,14 @@ const SettingsModal: React.FC<{
 
             {onLogout && (
               <button
-                className="px-5 py-2 rounded-lg font-bold text-white bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 transition shadow-lg"
+                className="px-5 py-2 rounded-lg font-bold text-white bg-linear-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 transition shadow-lg"
                 onClick={onLogout}
               >
                 LOGOUT
               </button>
             )}
           </div>
-
         </div>
-
       </div>
     </div>
   );

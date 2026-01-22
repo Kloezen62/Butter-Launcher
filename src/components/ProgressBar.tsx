@@ -1,5 +1,5 @@
 import { formatBytes } from "../utils/formatNum";
-import { twMerge } from "tailwind-merge";
+import cn from "../utils/cn";
 
 interface Props {
   progress: InstallProgress;
@@ -18,7 +18,7 @@ const PHASES: Record<string, string> = {
 
 export default function ProgressBar({ progress, className }: Props) {
   return (
-    <div className={twMerge("w-full flex flex-col", className)}>
+    <div className={cn("w-full flex flex-col", className)}>
       <div className="text-xs text-white font-semibold">
         {PHASES[progress.phase]}
       </div>
@@ -32,14 +32,16 @@ export default function ProgressBar({ progress, className }: Props) {
               progress.phase.split("-")[1] === "download" ||
               progress.phase === "online-patch" ? (
                 <>
-                  {formatBytes(progress.current)} / {formatBytes(progress.total)}
+                  {formatBytes(progress.current)} /{" "}
+                  {formatBytes(progress.total)}
                 </>
               ) : (
                 <>
                   {progress.current} / {progress.total}
                 </>
               )
-            ) : progress.phase.split("-")[1] === "download" || progress.phase === "online-patch" ? (
+            ) : progress.phase.split("-")[1] === "download" ||
+              progress.phase === "online-patch" ? (
               <>{formatBytes(progress.current)}</>
             ) : null}
           </div>
@@ -48,9 +50,9 @@ export default function ProgressBar({ progress, className }: Props) {
       <div className="relative mt-1 overflow-hidden">
         <div className="absolute inset-0 bg-white/20 rounded-full"></div>
         <div
-          className={twMerge(
+          className={cn(
             "h-1 bg-linear-to-r from-[#3b82f6] to-[#60a5fa] rounded-full",
-            progress.percent === -1 && "animate-loading-horiz"
+            progress.percent === -1 && "animate-loading-horiz",
           )}
           style={{
             width: progress.percent === -1 ? "100%" : `${progress.percent}%`,

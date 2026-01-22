@@ -28,7 +28,13 @@ interface Window {
     OS: NodeJS.Platform;
     ARCH: NodeJS.Architecture;
     getDefaultGameDirectory: () => Promise<string>;
-    openFolder: (folderPath: string) => Promise<{ ok: boolean; error: string | null }>;
-    openExternal: (url: string) => Promise<{ ok: boolean; error: string | null }>;
+    openFolder: (
+      folderPath: string,
+    ) => Promise<{ ok: boolean; error: string | null }>;
+    openExternal: (
+      url: string,
+    ) => Promise<{ ok: boolean; error: string | null }>;
+    VERSION: string;
+    BUILD_DATE: string;
   };
 }
