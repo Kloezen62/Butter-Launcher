@@ -44,12 +44,14 @@ export const GameContextProvider = ({
 
   const [versionType, setVersionType] = useState<VersionType>("release");
   const [releaseVersions, setReleaseVersions] = useState<GameVersion[]>([]);
-  const [preReleaseVersions, setPreReleaseVersions] = useState<GameVersion[]>([]);
+  const [preReleaseVersions, setPreReleaseVersions] = useState<GameVersion[]>(
+    [],
+  );
   const releaseVersionsRef = useRef<GameVersion[]>([]);
   const preReleaseVersionsRef = useRef<GameVersion[]>([]);
   const [selectedIndexByType, setSelectedIndexByType] = useState<
     Record<VersionType, number>
-  >({ "release": 0, "pre-release": 0 });
+  >({ release: 0, "pre-release": 0 });
 
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -78,14 +80,15 @@ export const GameContextProvider = ({
     preReleaseVersionsRef.current = preReleaseVersions;
   }, [preReleaseVersions]);
 
-  const availableVersions = versionType === "release" ? releaseVersions : preReleaseVersions;
+  const availableVersions =
+    versionType === "release" ? releaseVersions : preReleaseVersions;
   const selectedVersion = selectedIndexByType[versionType] ?? 0;
 
   const setSelectedVersion = useCallback(
     (idx: number) => {
       setSelectedIndexByType((prev) => ({ ...prev, [versionType]: idx }));
     },
-    [versionType]
+    [versionType],
   );
 
   const dismissUpdateForNow = useCallback(() => {
@@ -100,7 +103,8 @@ export const GameContextProvider = ({
     const newestInstalled = installed.length ? installed[0] : null;
     if (!newestInstalled) return;
     const idx = releaseVersions.findIndex(
-      (v) => v.build_index === newestInstalled.build_index && v.type === "release",
+      (v) =>
+        v.build_index === newestInstalled.build_index && v.type === "release",
     );
     if (idx !== -1) {
       setSelectedIndexByType((prev) => ({ ...prev, release: idx }));
@@ -117,7 +121,7 @@ export const GameContextProvider = ({
 
       window.ipcRenderer.send("install-game", gameDir, version);
     },
-    [gameDir]
+    [gameDir],
   );
 
   const launchGame = useCallback(
@@ -158,9 +162,15 @@ export const GameContextProvider = ({
       const customUUID = (localStorage.getItem("customUUID") || "").trim();
       const uuidArg = customUUID.length ? customUUID : null;
 
-      window.ipcRenderer.send("launch-game", gameDir, version, username, uuidArg);
+      window.ipcRenderer.send(
+        "launch-game",
+        gameDir,
+        version,
+        username,
+        uuidArg,
+      );
     },
-    [gameDir]
+    [gameDir],
   );
 
   const checkForUpdates = useCallback(
@@ -172,7 +182,11 @@ export const GameContextProvider = ({
         const installed = (await window.ipcRenderer.invoke(
           "list-installed-versions",
           gameDir,
-        )) as Array<{ type: VersionType; build_index: number; isLatest?: boolean }>;
+        )) as Array<{
+          type: VersionType;
+          build_index: number;
+          isLatest?: boolean;
+        }>;
 
         const releaseInstalledSet = new Set<number>();
         const preReleaseInstalledSet = new Set<number>();
@@ -185,7 +199,9 @@ export const GameContextProvider = ({
         }
 
         const isInstalled = (t: VersionType, idx: number) =>
-          t === "release" ? releaseInstalledSet.has(idx) : preReleaseInstalledSet.has(idx);
+          t === "release"
+            ? releaseInstalledSet.has(idx)
+            : preReleaseInstalledSet.has(idx);
 
         const [remoteRelease, remotePre] = await Promise.all([
           getGameVersions("release"),
@@ -193,8 +209,12 @@ export const GameContextProvider = ({
         ]);
 
         // If remote fetch fails, do NOT wipe the list; just refresh installed flags.
-        const releaseBase = remoteRelease.length ? remoteRelease : releaseVersionsRef.current;
-        const preBase = remotePre.length ? remotePre : preReleaseVersionsRef.current;
+        const releaseBase = remoteRelease.length
+          ? remoteRelease
+          : releaseVersionsRef.current;
+        const preBase = remotePre.length
+          ? remotePre
+          : preReleaseVersionsRef.current;
 
         const nextRelease = releaseBase.map((v) => ({
           ...v,
@@ -215,9 +235,12 @@ export const GameContextProvider = ({
             return v.build_index > best.build_index ? v : best;
           }, undefined);
 
-        const latestRelease = nextRelease.find((v) => v.isLatest) ?? nextRelease[0];
+        const latestRelease =
+          nextRelease.find((v) => v.isLatest) ?? nextRelease[0];
         const hasUpdate =
-          !!newestInstalledRelease && !!latestRelease && latestRelease.build_index > newestInstalledRelease.build_index;
+          !!newestInstalledRelease &&
+          !!latestRelease &&
+          latestRelease.build_index > newestInstalledRelease.build_index;
         setUpdateAvailable(hasUpdate);
 
         // Default selection behavior (priority):
@@ -237,7 +260,9 @@ export const GameContextProvider = ({
           }
 
           if (newestInstalled) {
-            const idx = list.findIndex((v) => v.build_index === newestInstalled.build_index);
+            const idx = list.findIndex(
+              (v) => v.build_index === newestInstalled.build_index,
+            );
             if (idx !== -1) return idx;
           }
 
@@ -251,10 +276,18 @@ export const GameContextProvider = ({
             return v.build_index > best.build_index ? v : best;
           }, undefined);
 
-        const releaseIdx = pickIndex(nextRelease, "release", newestInstalledRelease);
+        const releaseIdx = pickIndex(
+          nextRelease,
+          "release",
+          newestInstalledRelease,
+        );
         const preIdx = pickIndex(nextPre, "pre-release", newestInstalledPre);
 
-        setSelectedIndexByType((prev) => ({ ...prev, release: releaseIdx, "pre-release": preIdx }));
+        setSelectedIndexByType((prev) => ({
+          ...prev,
+          release: releaseIdx,
+          "pre-release": preIdx,
+        }));
 
         // If user never picked anything, prefer release tab when available.
         if (nextRelease.length) setVersionType((prev) => prev || "release");
@@ -262,7 +295,7 @@ export const GameContextProvider = ({
         setCheckingUpdates(false);
       }
     },
-    [gameDir]
+    [gameDir],
   );
 
   useEffect(() => {
@@ -272,25 +305,28 @@ export const GameContextProvider = ({
     let lastUpdateProgress: number;
     const lastProgressRef = { current: null as InstallProgress | null };
 
-    window.ipcRenderer.on("install-progress", (_, progress: InstallProgress) => {
-      const now = Date.now();
-      const last = lastProgressRef.current;
+    window.ipcRenderer.on(
+      "install-progress",
+      (_, progress: InstallProgress) => {
+        const now = Date.now();
+        const last = lastProgressRef.current;
 
-      // Never drop phase changes (this was causing the UI to get stuck on "Downloading...").
-      const phaseChanged = !last || last.phase !== progress.phase;
-      const allowThrough =
-        phaseChanged ||
-        progress.percent === -1 ||
-        progress.percent === 100 ||
-        !lastUpdateProgress ||
-        now - lastUpdateProgress >= bounceTimeout;
+        // Never drop phase changes (this was causing the UI to get stuck on "Downloading...").
+        const phaseChanged = !last || last.phase !== progress.phase;
+        const allowThrough =
+          phaseChanged ||
+          progress.percent === -1 ||
+          progress.percent === 100 ||
+          !lastUpdateProgress ||
+          now - lastUpdateProgress >= bounceTimeout;
 
-      if (!allowThrough) return;
+        if (!allowThrough) return;
 
-      lastUpdateProgress = now;
-      lastProgressRef.current = progress;
-      setInstallProgress(progress);
-    });
+        lastUpdateProgress = now;
+        lastProgressRef.current = progress;
+        setInstallProgress(progress);
+      },
+    );
 
     // Online client patch (startup) progress
     // Only show patching UI when a download actually starts (progress events).
@@ -299,7 +335,7 @@ export const GameContextProvider = ({
       (_, progress: InstallProgress) => {
         setPatchingOnline(true);
         setPatchProgress(progress);
-      }
+      },
     );
     window.ipcRenderer.on("online-patch-finished", () => {
       setPatchingOnline(false);
@@ -309,7 +345,7 @@ export const GameContextProvider = ({
       (_, progress: InstallProgress) => {
         setPatchingOnline(true);
         setPatchProgress(progress);
-      }
+      },
     );
     window.ipcRenderer.on("online-unpatch-finished", () => {
       setPatchingOnline(false);
@@ -348,7 +384,12 @@ export const GameContextProvider = ({
         );
 
         // If the version isn't present (rare/offline), append a minimal entry.
-        if (!next.some((v) => v.type === version.type && v.build_index === version.build_index)) {
+        if (
+          !next.some(
+            (v) =>
+              v.type === version.type && v.build_index === version.build_index,
+          )
+        ) {
           next.unshift({
             ...version,
             installed: true,
@@ -363,7 +404,9 @@ export const GameContextProvider = ({
       if (version.type === "release") {
         setReleaseVersions((prev) => {
           const next = applyInstalled(prev);
-          const idx = next.findIndex((v) => v.build_index === version.build_index);
+          const idx = next.findIndex(
+            (v) => v.build_index === version.build_index,
+          );
           if (idx !== -1) {
             setSelectedIndexByType((p) => ({ ...p, release: idx }));
           }
@@ -372,7 +415,9 @@ export const GameContextProvider = ({
       } else {
         setPreReleaseVersions((prev) => {
           const next = applyInstalled(prev);
-          const idx = next.findIndex((v) => v.build_index === version.build_index);
+          const idx = next.findIndex(
+            (v) => v.build_index === version.build_index,
+          );
           if (idx !== -1) {
             setSelectedIndexByType((p) => ({ ...p, "pre-release": idx }));
           }
@@ -406,7 +451,10 @@ export const GameContextProvider = ({
     if (!availableVersions.length) return;
     const selected = availableVersions[selectedVersion];
     if (!selected) return;
-    localStorage.setItem(`selectedVersion:${versionType}`, selected.build_index.toString());
+    localStorage.setItem(
+      `selectedVersion:${versionType}`,
+      selected.build_index.toString(),
+    );
   }, [selectedVersion, availableVersions]);
 
   return (

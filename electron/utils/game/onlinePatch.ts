@@ -8,6 +8,7 @@ import {
   migrateLegacyChannelInstallIfNeeded,
   resolveClientPath,
   resolveExistingInstallDir,
+  resolveServerPath,
 } from "./paths";
 
 const pipeline = promisify(stream.pipeline);
@@ -230,7 +231,9 @@ const downloadFileWithProgress = async (
   });
 };
 
-export const getOnlinePatchState = (
+// Client Patching
+
+export const getClientPatchState = (
   gameDir: string,
   version: GameVersion,
 ): {
@@ -239,7 +242,10 @@ export const getOnlinePatchState = (
   enabled: boolean;
   downloaded: boolean;
 } => {
-  const supported = process.platform === "win32";
+  const supported =
+    process.platform === "win32" ||
+    process.platform === "linux" ||
+    process.platform === "darwin";
   const available = !!(version.patch_url && version.patch_hash);
   if (!supported || !available)
     return { supported, available, enabled: false, downloaded: false };
@@ -296,7 +302,7 @@ export const getOnlinePatchState = (
   };
 };
 
-export const getOnlinePatchHealth = async (
+export const getClientPatchHealth = async (
   gameDir: string,
   version: GameVersion,
 ): Promise<{
@@ -307,7 +313,10 @@ export const getOnlinePatchHealth = async (
   needsFixClient: boolean;
   patchOutdated: boolean;
 }> => {
-  const supported = process.platform === "win32";
+  const supported =
+    process.platform === "win32" ||
+    process.platform === "linux" ||
+    process.platform === "darwin";
   const available = !!(version.patch_url && version.patch_hash);
   if (!supported || !available) {
     return {
@@ -480,7 +489,7 @@ export const fixClientToUnpatched = async (
   return "fixed";
 };
 
-export const enableOnlinePatch = async (
+export const enableClientPatch = async (
   gameDir: string,
   version: GameVersion,
   win: BrowserWindow,
@@ -642,7 +651,7 @@ export const enableOnlinePatch = async (
   return "enabled";
 };
 
-export const disableOnlinePatch = async (
+export const disableClientPatch = async (
   gameDir: string,
   version: GameVersion,
   win: BrowserWindow,
@@ -799,7 +808,7 @@ export const disableOnlinePatch = async (
   return "disabled";
 };
 
-export const checkOnlinePatchNeeded = async (
+export const checkClientPatchNeeded = async (
   gameDir: string,
   version: GameVersion,
 ): Promise<"needs" | "up-to-date" | "skipped"> => {
@@ -818,4 +827,519 @@ export const checkOnlinePatchNeeded = async (
   } catch {
     return "needs";
   }
+};
+
+// Server Patching
+
+const getServerPath = (gameDir: string, version: GameVersion) => {
+  migrateLegacyChannelInstallIfNeeded(gameDir, version.type);
+  const installDir = resolveExistingInstallDir(gameDir, version);
+  return resolveServerPath(installDir);
+};
+
+export const getServerPatchState = (
+  gameDir: string,
+  version: GameVersion,
+): {
+  supported: boolean;
+  available: boolean;
+  enabled: boolean;
+  downloaded: boolean;
+} => {
+  const supported =
+    process.platform === "win32" ||
+    process.platform === "linux" ||
+    process.platform === "darwin";
+  const available = !!(version.server_url && version.unserver_url);
+  if (!supported || !available)
+    return { supported, available, enabled: false, downloaded: false };
+
+  const serverPath = getServerPath(gameDir, version);
+  if (!fs.existsSync(serverPath))
+    return { supported, available, enabled: false, downloaded: false };
+
+  const { statePath, patchedPath, originalPath } = getPatchPaths(serverPath);
+  const state = readPatchState(statePath);
+
+  let enabled = !!state?.enabled;
+  if (!enabled && fs.existsSync(patchedPath)) {
+    enabled = true;
+    writePatchState(statePath, {
+      enabled: true,
+      patch_hash: state?.patch_hash,
+      patch_url: version.server_url,
+      original_url: version.unserver_url ?? state?.original_url,
+      patch_note: state?.patch_note,
+      updatedAt: Date.now(),
+    });
+  }
+
+  void originalPath;
+
+  return {
+    supported,
+    available,
+    enabled,
+    downloaded: fs.existsSync(patchedPath),
+  };
+};
+
+export const getServerPatchHealth = async (
+  gameDir: string,
+  version: GameVersion,
+): Promise<{
+  supported: boolean;
+  available: boolean;
+  enabled: boolean;
+  serverIsPatched: boolean;
+  needsFixServer: boolean;
+}> => {
+  const supported =
+    process.platform === "win32" ||
+    process.platform === "linux" ||
+    process.platform === "darwin";
+  const available = !!(version.server_url && version.unserver_url);
+  if (!supported || !available) {
+    return {
+      supported,
+      available,
+      enabled: false,
+      serverIsPatched: false,
+      needsFixServer: false,
+    };
+  }
+
+  const serverPath = getServerPath(gameDir, version);
+  if (!fs.existsSync(serverPath)) {
+    return {
+      supported,
+      available,
+      enabled: false,
+      serverIsPatched: false,
+      needsFixServer: false,
+    };
+  }
+
+  const { statePath, patchedPath } = getPatchPaths(serverPath);
+  const state = readPatchState(statePath);
+
+  let enabled = typeof state?.enabled === "boolean" ? state.enabled : false;
+
+  // For server, we don't have a hash to verify, so we trust the state file
+  let serverIsPatched = enabled;
+  if (!enabled && fs.existsSync(patchedPath)) {
+    enabled = true;
+    serverIsPatched = true;
+    writePatchState(statePath, {
+      enabled: true,
+      patch_hash: state?.patch_hash,
+      patch_url: version.server_url,
+      original_url: version.unserver_url ?? state?.original_url,
+      patch_note: state?.patch_note,
+      updatedAt: Date.now(),
+    });
+  }
+
+  const needsFixServer = state?.enabled === false && serverIsPatched;
+
+  return {
+    supported,
+    available,
+    enabled,
+    serverIsPatched,
+    needsFixServer,
+  };
+};
+
+export const fixServerToUnpatched = async (
+  gameDir: string,
+  version: GameVersion,
+  win: BrowserWindow,
+  progressChannel: "online-unpatch-progress" = "online-unpatch-progress",
+): Promise<"fixed" | "not-needed" | "skipped"> => {
+  // Logic mirrors fixClientToUnpatched but for Server
+  const serverPath = getServerPath(gameDir, version);
+  if (!fs.existsSync(serverPath)) return "skipped";
+
+  // Check health to see if we actually need a fix
+  const health = await getServerPatchHealth(gameDir, version);
+  if (!health.needsFixServer) return "not-needed";
+
+  const originalUrl = version.unserver_url;
+  if (!originalUrl) {
+    throw new Error(
+      "Missing unserver_url (original) for this build. Cannot fix server.",
+    );
+  }
+
+  const paths = getPatchPaths(serverPath);
+  ensureDirs([paths.root, paths.originalDir, paths.patchedDir]);
+
+  // Download original server into a temp file
+  const tempOriginal = path.join(
+    paths.root,
+    `temp_original_fix_${Date.now()}_${path.basename(serverPath)}`,
+  );
+
+  await downloadFileWithProgress(
+    withCacheBuster(originalUrl, `orig-fix-${Date.now()}`),
+    tempOriginal,
+    win,
+    progressChannel,
+    "online-unpatch",
+  );
+
+  win.webContents.send(progressChannel, {
+    phase: "online-unpatch",
+    percent: -1,
+  });
+
+  // Swap: Move current broken/patched server to temp, put downloaded original in place
+  const tempCurrent = path.join(
+    paths.root,
+    `temp_current_broken_${Date.now()}_${path.basename(serverPath)}`,
+  );
+
+  moveReplace(serverPath, tempCurrent);
+
+  // If we don't have a patched backup, we might want to save the 'broken' one just in case,
+  // but usually 'fix' implies the current state is untrustworthy.
+  // We will prioritize preserving a known good original.
+  if (!fs.existsSync(paths.originalPath)) {
+    copyReplace(tempOriginal, paths.originalPath);
+  }
+
+  moveReplace(tempOriginal, serverPath);
+  unlinkIfExists(tempCurrent);
+
+  win.webContents.send(progressChannel, {
+    phase: "online-unpatch",
+    percent: 100,
+  });
+
+  // Force state to disabled/healthy
+  writePatchState(paths.statePath, {
+    enabled: false,
+    patch_url: version.server_url,
+    original_url: originalUrl,
+    updatedAt: Date.now(),
+  });
+
+  return "fixed";
+};
+
+export const enableServerPatch = async (
+  gameDir: string,
+  version: GameVersion,
+  win: BrowserWindow,
+  progressChannel:
+    | "install-progress"
+    | "online-patch-progress" = "online-patch-progress",
+): Promise<"enabled" | "already-enabled" | "skipped"> => {
+  const url = version.server_url;
+  const originalUrl = version.unserver_url;
+  if (!url || !originalUrl) return "skipped";
+
+  const serverPath = getServerPath(gameDir, version);
+  if (!fs.existsSync(serverPath)) return "skipped";
+
+  const paths = getPatchPaths(serverPath);
+  ensureDirs([paths.root, paths.originalDir, paths.patchedDir]);
+
+  const existing = readPatchState(paths.statePath);
+
+  if (existing?.enabled) {
+    return "already-enabled";
+  }
+
+  // Download patched server if not cached
+  let patchedOk = fs.existsSync(paths.patchedPath);
+
+  if (!patchedOk) {
+    await downloadFileWithProgress(
+      withCacheBuster(url, `server-patch-${Date.now()}`),
+      paths.tempDownloadPath,
+      win,
+      progressChannel,
+      "online-patch",
+    );
+
+    moveReplace(paths.tempDownloadPath, paths.patchedPath);
+  }
+
+  win.webContents.send(progressChannel, { phase: "online-patch", percent: -1 });
+
+  // Preserve original if not already backed up
+  if (!fs.existsSync(paths.originalPath)) {
+    moveReplace(serverPath, paths.originalPath);
+  } else {
+    const tempCurrent = path.join(
+      paths.root,
+      `temp_current_${Date.now()}_${path.basename(serverPath)}`,
+    );
+    moveReplace(serverPath, tempCurrent);
+    unlinkIfExists(tempCurrent);
+  }
+
+  copyReplace(paths.patchedPath, serverPath);
+  win.webContents.send(progressChannel, {
+    phase: "online-patch",
+    percent: 100,
+  });
+
+  writePatchState(paths.statePath, {
+    enabled: true,
+    patch_url: url,
+    original_url: originalUrl,
+    updatedAt: Date.now(),
+  });
+
+  return "enabled";
+};
+
+export const disableServerPatch = async (
+  gameDir: string,
+  version: GameVersion,
+  win: BrowserWindow,
+  progressChannel: "online-unpatch-progress" = "online-unpatch-progress",
+): Promise<"disabled" | "already-disabled" | "skipped"> => {
+  const url = version.server_url;
+  const originalUrl = version.unserver_url;
+  if (!url || !originalUrl) return "skipped";
+
+  const serverPath = getServerPath(gameDir, version);
+  if (!fs.existsSync(serverPath)) return "skipped";
+
+  const paths = getPatchPaths(serverPath);
+  ensureDirs([paths.root, paths.originalDir, paths.patchedDir]);
+
+  const existing = readPatchState(paths.statePath);
+
+  if (!existing?.enabled) return "already-disabled";
+
+  if (!fs.existsSync(paths.originalPath)) {
+    // Need to download the original server
+    const tempOriginal = path.join(
+      paths.root,
+      `temp_original_${Date.now()}_${path.basename(serverPath)}`,
+    );
+    await downloadFileWithProgress(
+      withCacheBuster(originalUrl, `orig-${Date.now()}`),
+      tempOriginal,
+      win,
+      progressChannel,
+      "online-unpatch",
+    );
+
+    moveReplace(tempOriginal, paths.originalPath);
+  }
+
+  win.webContents.send(progressChannel, {
+    phase: "online-unpatch",
+    percent: -1,
+  });
+
+  // Swap back
+  const tempCurrent = path.join(
+    paths.root,
+    `temp_current_${Date.now()}_${path.basename(serverPath)}`,
+  );
+  moveReplace(serverPath, tempCurrent);
+  copyReplace(tempCurrent, paths.patchedPath);
+  copyReplace(paths.originalPath, serverPath);
+  unlinkIfExists(tempCurrent);
+
+  win.webContents.send(progressChannel, {
+    phase: "online-unpatch",
+    percent: 100,
+  });
+
+  writePatchState(paths.statePath, {
+    enabled: false,
+    patch_url: url,
+    original_url: originalUrl,
+    updatedAt: Date.now(),
+  });
+
+  return "disabled";
+};
+
+export const checkServerPatchNeeded = async (
+  gameDir: string,
+  version: GameVersion,
+): Promise<"needs" | "up-to-date" | "skipped"> => {
+  if (!version.server_url || !version.unserver_url) return "skipped";
+
+  const serverPath = getServerPath(gameDir, version);
+  if (!fs.existsSync(serverPath)) return "skipped";
+
+  const { statePath } = getPatchPaths(serverPath);
+  const state = readPatchState(statePath);
+
+  // If state says enabled and patch_url matches, consider up-to-date
+  if (state?.enabled && state.patch_url === version.server_url) {
+    return "up-to-date";
+  }
+
+  return "needs";
+};
+
+// Unified wrappers that handle both client and server patching
+
+export const enableOnlinePatch = async (
+  gameDir: string,
+  version: GameVersion,
+  win: BrowserWindow,
+  progressChannel:
+    | "install-progress"
+    | "online-patch-progress" = "online-patch-progress",
+): Promise<"enabled" | "already-enabled" | "skipped"> => {
+  // First, patch the client
+  const clientResult = await enableClientPatch(
+    gameDir,
+    version,
+    win,
+    progressChannel,
+  );
+
+  // Then, patch the server if available
+  if (version.server_url && version.unserver_url) {
+    await enableServerPatch(gameDir, version, win, progressChannel);
+  }
+
+  return clientResult;
+};
+
+export const disableOnlinePatch = async (
+  gameDir: string,
+  version: GameVersion,
+  win: BrowserWindow,
+  progressChannel: "online-unpatch-progress" = "online-unpatch-progress",
+): Promise<"disabled" | "already-disabled" | "skipped"> => {
+  // First, unpatch the client
+  const clientResult = await disableClientPatch(
+    gameDir,
+    version,
+    win,
+    progressChannel,
+  );
+
+  // Then, unpatch the server if available
+  if (version.server_url && version.unserver_url) {
+    await disableServerPatch(gameDir, version, win, progressChannel);
+  }
+
+  return clientResult;
+};
+
+export const getOnlinePatchState = (
+  gameDir: string,
+  version: GameVersion,
+): {
+  supported: boolean;
+  available: boolean;
+  enabled: boolean;
+  downloaded: boolean;
+} => {
+  const clientState = getClientPatchState(gameDir, version);
+  // const serverState = getServerPatchState(gameDir, version);
+
+  // Unified State Logic:
+  // - Available: If client patch is available, the feature is available.
+  // - Enabled: True if client is enabled (server usually follows client).
+  // - Downloaded: True if client is downloaded.
+
+  return {
+    supported: clientState.supported,
+    available: clientState.available,
+    enabled: clientState.enabled,
+    downloaded: clientState.downloaded,
+  };
+};
+
+export const getOnlinePatchHealth = async (
+  gameDir: string,
+  version: GameVersion,
+): Promise<{
+  supported: boolean;
+  available: boolean;
+  enabled: boolean;
+  clientIsPatched: boolean;
+  serverIsPatched: boolean;
+  needsFixClient: boolean;
+  needsFixServer: boolean;
+  needsFix: boolean; // Aggregated flag
+  patchOutdated: boolean;
+}> => {
+  const clientHealth = await getClientPatchHealth(gameDir, version);
+  const serverHealth = await getServerPatchHealth(gameDir, version);
+
+  return {
+    supported: clientHealth.supported,
+    available: clientHealth.available,
+    enabled: clientHealth.enabled,
+
+    // Detailed props
+    clientIsPatched: clientHealth.clientIsPatched,
+    serverIsPatched: serverHealth.serverIsPatched,
+    needsFixClient: clientHealth.needsFixClient,
+    needsFixServer: serverHealth.needsFixServer,
+
+    // Aggregates
+    needsFix: clientHealth.needsFixClient || serverHealth.needsFixServer,
+    patchOutdated: clientHealth.patchOutdated, // Server doesn't usually report outdated hash
+  };
+};
+
+export const checkOnlinePatchNeeded = async (
+  gameDir: string,
+  version: GameVersion,
+): Promise<"needs" | "up-to-date" | "skipped"> => {
+  const clientCheck = await checkClientPatchNeeded(gameDir, version);
+
+  // If client needs update or is skipped, that's the primary signal
+  if (clientCheck === "needs") return "needs";
+  if (clientCheck === "skipped") return "skipped";
+
+  // If client is up-to-date, we must check the server just in case
+  const serverCheck = await checkServerPatchNeeded(gameDir, version);
+
+  if (serverCheck === "needs") return "needs";
+
+  return "up-to-date";
+};
+
+export const fixOnlinePatch = async (
+  gameDir: string,
+  version: GameVersion,
+  win: BrowserWindow,
+  progressChannel: "online-unpatch-progress" = "online-unpatch-progress",
+): Promise<"fixed" | "not-needed" | "skipped"> => {
+  // 1. Fix Client
+  const clientResult = await fixClientToUnpatched(
+    gameDir,
+    version,
+    win,
+    progressChannel,
+  );
+
+  // 2. Fix Server
+  // Note: We ignore the return value of server fix unless client was "not-needed",
+  // effectively OR-ing the results.
+  const serverResult = await fixServerToUnpatched(
+    gameDir,
+    version,
+    win,
+    progressChannel,
+  );
+
+  if (clientResult === "fixed" || serverResult === "fixed") {
+    return "fixed";
+  }
+
+  if (clientResult === "skipped" && serverResult === "skipped") {
+    return "skipped";
+  }
+
+  return "not-needed";
 };

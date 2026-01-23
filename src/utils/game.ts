@@ -44,7 +44,7 @@ const startOfToday = () => {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 };
 
-const loadCachedVersionDetails = (): VersionDetailsRoot | null => {
+const loadCachedVersionDetails = (): VersionsManifestRoot | null => {
   try {
     const raw = localStorage.getItem(VERSION_DETAILS_CACHE_KEY);
     if (!raw) return null;
@@ -54,7 +54,10 @@ const loadCachedVersionDetails = (): VersionDetailsRoot | null => {
   }
 };
 
-const saveCachedVersionDetails = (details: VersionDetailsRoot, meta?: any) => {
+const saveCachedVersionDetails = (
+  details: VersionsManifestRoot,
+  meta?: any,
+) => {
   try {
     localStorage.setItem(VERSION_DETAILS_CACHE_KEY, JSON.stringify(details));
     if (meta)
@@ -65,7 +68,7 @@ const saveCachedVersionDetails = (details: VersionDetailsRoot, meta?: any) => {
 };
 
 const fetchVersionDetailsIfOnline =
-  async (): Promise<VersionDetailsRoot | null> => {
+  async (): Promise<VersionsManifestRoot | null> => {
     const url = `${import.meta.env.VITE_REQUEST_VERSIONS_DETAILS_URL}`;
     try {
       const status = await window.ipcRenderer.invoke("fetch:head", url);
@@ -73,7 +76,7 @@ const fetchVersionDetailsIfOnline =
       return (await window.ipcRenderer.invoke(
         "fetch:json",
         url,
-      )) as VersionDetailsRoot;
+      )) as VersionsManifestRoot;
     } catch {
       return null;
     }
@@ -164,9 +167,7 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
       : details.latest_prerelease_id;
 
   const namesMap =
-    versionType === "release"
-      ? details.versions[useSystemOS()]
-      : details.pre_releases[useSystemOS()];
+    versionType === "release" ? details.versions : details.pre_releases;
 
   // 2) Build candidate IDs from list.
   let ids = Object.keys(namesMap || {})
@@ -203,7 +204,8 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
   const arch = useSystemArch(os);
 
   const versions: GameVersion[] = finalIds.map((buildIndex) => {
-    const detailsEntry = namesMap?.[buildIndex.toString()];
+    const versionEntry = namesMap?.[buildIndex];
+    const detailsEntry = versionEntry?.[os];
     const listedName = detailsEntry?.name;
     const build_name =
       typeof listedName === "string" && listedName.trim().length > 0
@@ -226,8 +228,16 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
       typeof (detailsEntry as any)?.patch_note === "string"
         ? (detailsEntry as any).patch_note
         : undefined;
+    const server_url =
+      typeof (versionEntry as any)?.server_url === "string"
+        ? (versionEntry as any).server_url
+        : undefined;
+    const unserver_url =
+      typeof (versionEntry as any)?.unserver_url === "string"
+        ? (versionEntry as any).unserver_url
+        : undefined;
 
-    return {
+    const version: GameVersion = {
       url: buildPwrUrl(os, arch, versionType, buildIndex),
       type: versionType,
       build_index: buildIndex,
@@ -237,7 +247,10 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
       patch_hash: patch_url && patch_hash ? patch_hash : undefined,
       original_url: patch_url && patch_hash ? original_url : undefined,
       patch_note: patch_url && patch_hash ? patch_note : undefined,
+      server_url: server_url,
+      unserver_url: unserver_url,
     };
+    return version;
   });
 
   // Mark the actual latest build based on what exists (includes probeBeyondLatest).
