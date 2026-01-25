@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useGameContext } from "../hooks/gameContext";
 import { useUserContext } from "../hooks/userContext";
 import butterBg from "../assets/butter-bg.png";
@@ -87,6 +87,45 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
     !!selected.patch_url &&
     !!selected.patch_hash;
 
+  // async state updates are fun until they are not
+  // we only trust the most recent health check because time is not a deterministic function
+  const onlinePatchHealthSeq = useRef(0);
+
+  const refreshOnlinePatchHealth = useCallback(async () => {
+    const seq = ++onlinePatchHealthSeq.current;
+
+    if (!patchAvailable || !gameDir || !selected) {
+      if (seq !== onlinePatchHealthSeq.current) return;
+      setOnlinePatchEnabled(false);
+      setNeedsFixClient(false);
+      setPatchOutdated(false);
+      return;
+    }
+
+    try {
+      const health = (await window.ipcRenderer.invoke(
+        "online-patch:health",
+        gameDir,
+        selected,
+      )) as {
+        enabled?: boolean;
+        needsFixClient?: boolean;
+        patchOutdated?: boolean;
+      };
+
+      if (seq !== onlinePatchHealthSeq.current) return;
+
+      setOnlinePatchEnabled(!!health?.enabled);
+      setNeedsFixClient(!!health?.needsFixClient);
+      setPatchOutdated(!!health?.patchOutdated);
+    } catch {
+      if (seq !== onlinePatchHealthSeq.current) return;
+      setOnlinePatchEnabled(false);
+      setNeedsFixClient(false);
+      setPatchOutdated(false);
+    }
+  }, [gameDir, patchAvailable, selected]);
+
   const showUpdate =
     versionType === "release" &&
     updateAvailable &&
@@ -157,72 +196,15 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      if (!patchAvailable || !gameDir || !selected) {
-        if (!cancelled) setOnlinePatchEnabled(false);
-        if (!cancelled) setNeedsFixClient(false);
-        if (!cancelled) setPatchOutdated(false);
-        return;
-      }
-
-      try {
-        const health = (await window.ipcRenderer.invoke(
-          "online-patch:health",
-          gameDir,
-          selected,
-        )) as {
-          enabled?: boolean;
-          needsFixClient?: boolean;
-          patchOutdated?: boolean;
-        };
-        if (!cancelled) {
-          setOnlinePatchEnabled(!!health?.enabled);
-          setNeedsFixClient(!!health?.needsFixClient);
-          setPatchOutdated(!!health?.patchOutdated);
-        }
-      } catch {
-        if (!cancelled) {
-          setOnlinePatchEnabled(false);
-          setNeedsFixClient(false);
-          setPatchOutdated(false);
-        }
-      }
-    };
-
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [gameDir, patchAvailable, selected?.build_index, selected?.type]);
+    void refreshOnlinePatchHealth();
+  }, [refreshOnlinePatchHealth]);
 
   useEffect(() => {
     if (!gameDir) return;
 
-    const refresh = async () => {
-      if (!patchAvailable || !selected) return;
-      try {
-        const health = (await window.ipcRenderer.invoke(
-          "online-patch:health",
-          gameDir,
-          selected,
-        )) as {
-          enabled?: boolean;
-          needsFixClient?: boolean;
-          patchOutdated?: boolean;
-        };
-        setOnlinePatchEnabled(!!health?.enabled);
-        setNeedsFixClient(!!health?.needsFixClient);
-        setPatchOutdated(!!health?.patchOutdated);
-      } catch {
-        setOnlinePatchEnabled(false);
-        setNeedsFixClient(false);
-        setPatchOutdated(false);
-      }
-    };
+    const onPatched = () => void refreshOnlinePatchHealth();
+    const onUnpatched = () => void refreshOnlinePatchHealth();
 
-    const onPatched = () => void refresh();
-    const onUnpatched = () => void refresh();
     window.ipcRenderer.on("online-patch-finished", onPatched);
     window.ipcRenderer.on("online-unpatch-finished", onUnpatched);
 
@@ -230,7 +212,7 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
       window.ipcRenderer.off("online-patch-finished", onPatched);
       window.ipcRenderer.off("online-unpatch-finished", onUnpatched);
     };
-  }, [gameDir, patchAvailable, selected?.build_index, selected?.type]);
+  }, [gameDir, refreshOnlinePatchHealth]);
 
   const handleLaunch = () => {
     if (selectedVersion == null || !availableVersions[selectedVersion]) return;

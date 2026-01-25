@@ -54,14 +54,16 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
     const wrapped = getWrappedListener(channel, listener as any);
     return ipcRenderer.on(channel, wrapped as any);
   },
-  off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, listener] = args;
+  // `ipcRenderer.off` requires a listener, but callers in the renderer sometimes
+  // want to remove all listeners for a channel. Support both.
+  off(channel: string, listener?: (...args: any[]) => any) {
     if (typeof listener === "function") {
       const wrapped = dropWrappedListener(channel, listener as any);
       return ipcRenderer.off(channel, wrapped as any);
     }
     // If called with only the channel, forward as-is.
-    return ipcRenderer.off(channel as any);
+    listenerRegistry.delete(channel);
+    return ipcRenderer.removeAllListeners(channel);
   },
   send(...args: Parameters<typeof ipcRenderer.send>) {
     const [channel, ...omit] = args;
