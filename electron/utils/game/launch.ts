@@ -188,11 +188,16 @@ export const launchGame = async (
     try {
       const env = { ...process.env };
 
-      if (isWaylandSession()) {
-        console.log(
-          "Wayland session detected, setting SDL_VIDEODRIVER=wayland",
-        );
-        env.SDL_VIDEODRIVER = "wayland";
+      // Linux specific environment variables
+      if (process.platform === "linux") {
+        env.LD_LIBRARY_PATH = dirname(client);
+
+        if (isWaylandSession()) {
+          console.log(
+            "Wayland session detected, setting SDL_VIDEODRIVER=wayland",
+          );
+          env.SDL_VIDEODRIVER = "wayland";
+        }
       }
 
       const child = spawn(client, args, {
