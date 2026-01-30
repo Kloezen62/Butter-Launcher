@@ -1,7 +1,7 @@
 {
   "name": "butter-launcher",
   "description": "The best Hytale Launcher",
-  "author": "Butter Labs <butterlauncher@gmail.com",
+  "author": "Butter Labs <butterlauncher@gmail.com>",
   "private": false,
   "license": "MIT",
   "version": "1.1.0",
