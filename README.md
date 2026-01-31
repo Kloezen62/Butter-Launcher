@@ -19,6 +19,9 @@
   <a href="https://github.com/vzylev/butter-launcher/releases">
     <img src="https://img.shields.io/github/v/release/vzylev/butter-launcher?style=flat-square&color=2ea44f" alt="Latest Release">
   </a>
+  <a href="https://github.com/vzylev/butter-launcher/releases">
+    <img src="https://img.shields.io/github/downloads/vzylev/butter-launcher/total?style=flat-square&color=007acc&label=Downloads" alt="GitHub Downloads">
+  </a>
 </p>
 
 ---
