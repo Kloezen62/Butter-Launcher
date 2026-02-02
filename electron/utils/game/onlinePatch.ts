@@ -283,10 +283,12 @@ const downloadFileWithProgress = async (
   let downloadedLength = 0;
 
   const progressStream = new stream.PassThrough();
-  progressStream.on("data", (chunk) => {
-    downloadedLength += chunk.length;
-
-    if (aggregate) aggregate.current += chunk.length;
+  const progressIntervalMs = 200;
+  let lastProgressAt = 0;
+  const emitProgress = (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastProgressAt < progressIntervalMs) return;
+    lastProgressAt = now;
 
     const percent =
       totalLength > 0
@@ -302,6 +304,14 @@ const downloadFileWithProgress = async (
       total: totalLength > 0 ? totalLength : undefined,
       current: aggregate ? aggregate.current : downloadedLength,
     });
+  };
+
+  progressStream.on("data", (chunk) => {
+    downloadedLength += chunk.length;
+
+    if (aggregate) aggregate.current += chunk.length;
+
+    emitProgress(false);
   });
 
   // Initial state (indeterminate if content-length missing)

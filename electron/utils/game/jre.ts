@@ -140,8 +140,12 @@ export const installJRE = async (
     });
 
     const progressStream = new stream.PassThrough();
-    progressStream.on("data", (chunk) => {
-      downloadedLength += chunk.length;
+    const progressIntervalMs = 200;
+    let lastProgressAt = 0;
+    const emitProgress = (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastProgressAt < progressIntervalMs) return;
+      lastProgressAt = now;
 
       const percent =
         typeof totalLength === "number" && totalLength > 0
@@ -156,6 +160,11 @@ export const installJRE = async (
         total: totalLength,
         current: downloadedLength,
       });
+    };
+
+    progressStream.on("data", (chunk) => {
+      downloadedLength += chunk.length;
+      emitProgress(false);
     });
 
     try {
