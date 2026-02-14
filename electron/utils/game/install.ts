@@ -412,6 +412,49 @@ const installRawBinary = (
   return installDir;
 };
 
+/**
+ * Download the server jar when the manifest provides a server_url.
+ * Places it at installDir/Server/HytaleServer.jar.
+ */
+const downloadServerJar = async (
+  version: GameVersion,
+  installDir: string,
+  win: BrowserWindow,
+) => {
+  if (!version.server_url) return;
+  if (process.platform === "darwin") return; // macOS doesn't need a server
+
+  const serverDir = path.join(installDir, "Server");
+  const destPath = path.join(serverDir, "HytaleServer.jar");
+
+  if (fs.existsSync(destPath)) {
+    logger.info("Server jar already exists, skipping download.");
+    return;
+  }
+
+  logger.info(`Downloading server jar from ${version.server_url}`);
+  fs.mkdirSync(serverDir, { recursive: true });
+
+  const response = await fetch(version.server_url);
+  if (!response.ok) {
+    throw new Error(`Server jar download failed: HTTP ${response.status} ${response.statusText}`);
+  }
+  if (!response.body) throw new Error("No response body for server jar");
+
+  win.webContents.send("install-progress", {
+    phase: "server-download",
+    percent: -1,
+  });
+
+  await pipeline(
+    // @ts-ignore
+    stream.Readable.fromWeb(response.body),
+    fs.createWriteStream(destPath),
+  );
+
+  logger.info(`Server jar installed to ${destPath}`);
+};
+
 export const installGame = async (
   gameDir: string,
   version: GameVersion,
@@ -508,6 +551,10 @@ export const installGame = async (
 
       // On Linux/macOS, downloaded binaries may lose the executable bit.
       ensureClientExecutable(installDir);
+
+      // Download server jar if available and not already present.
+      await downloadServerJar(version, installDir, win);
+
       logger.info("Game installation complete.");
     } else {
       // If the manifest says it's installed, but binaries are missing, fall back to patching.
@@ -546,6 +593,10 @@ export const installGame = async (
         writeInstallManifest(installDir, version);
 
         ensureClientExecutable(installDir);
+
+        // Download server jar if available and not already present.
+        await downloadServerJar(version, installDir, win);
+
         logger.info("Game re-installation complete.");
       } else {
         logger.info("Game already installed and binaries verified.");
