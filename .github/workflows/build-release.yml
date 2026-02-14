@@ -70,15 +70,21 @@ jobs:
 
       - name: Build Electron (Windows)
         if: runner.os == 'Windows'
-        run: npx electron-builder --win --config electron-builder.json5
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --config electron-builder.json5 --publish never
 
       - name: Build Electron (macOS)
         if: runner.os == 'macOS'
-        run: npx electron-builder --mac --config electron-builder.json5
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --mac --config electron-builder.json5 --publish never
 
       - name: Build Electron (Linux)
         if: runner.os == 'Linux'
-        run: npx electron-builder --linux --config electron-builder.json5
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --linux --config electron-builder.json5 --publish never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
