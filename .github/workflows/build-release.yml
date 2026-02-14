@@ -1,0 +1,114 @@
+name: Build & Release (Fix Branch)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version tag (e.g. v1.1.3-fix-raw-downloads)"
+        required: true
+        default: "v1.1.3-fix-raw-downloads"
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_id: ${{ steps.create_release.outputs.id }}
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          release_name: "${{ github.event.inputs.version }} - Fix raw executable downloads"
+          body: |
+            ## Fixes
+            - **Raw executable detection**: Detects whether downloaded files are butler `.pwr` patches or raw binaries, and handles each appropriately
+            - **Server JAR download**: Fixes missing server binary by populating `server_url`/`unserver_url` from manifest and downloading `HytaleServer.jar`
+
+            ## Changes
+            - `electron/utils/game/install.ts`: Added `isButlerPatch()`, `installRawBinary()`, `downloadServerJar()`
+            - `src/utils/game.ts`: Populated `server_url` and `unserver_url` from manifest
+          draft: false
+          prerelease: true
+
+  build:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder rpm
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+      - name: Build app
+        run: npm run build
+
+      - name: Build Electron (Windows)
+        if: runner.os == 'Windows'
+        run: npx electron-builder --win --config electron-builder.json5
+
+      - name: Build Electron (macOS)
+        if: runner.os == 'macOS'
+        run: npx electron-builder --mac --config electron-builder.json5
+
+      - name: Build Electron (Linux)
+        if: runner.os == 'Linux'
+        run: npx electron-builder --linux --config electron-builder.json5
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}
+          path: |
+            release/**/*.exe
+            release/**/*.dmg
+            release/**/*.AppImage
+            release/**/*.deb
+            release/**/*.rpm
+            release/**/*.tar.gz
+            release/**/*.flatpak
+            release/**/*.blockmap
+            release/**/latest*.yml
+          if-no-files-found: warn
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          files: |
+            release/**/*.exe
+            release/**/*.dmg
+            release/**/*.AppImage
+            release/**/*.deb
+            release/**/*.rpm
+            release/**/*.tar.gz
+            release/**/*.flatpak
+            release/**/*.blockmap
+            release/**/latest*.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
