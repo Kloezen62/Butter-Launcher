@@ -49,6 +49,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: fix/handle-raw-executable-downloads
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
